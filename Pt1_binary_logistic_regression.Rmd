@@ -1,0 +1,101 @@
+---
+title: 'Part 1: binary logistic regression'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+library(palmerpenguins)
+library(GGally)
+library(broom)
+library(jtools)
+
+```
+
+```{r}
+penguins %>% 
+  select(species, bill_length_mm:sex) %>% 
+  ggpairs(aes(color = species))
+```
+
+Create subset w/ only Adelie & Chinstrap penguins
+```{r}
+adelie_chinstrap <- penguins %>% 
+  filter(species %in% c("Adelie", "Chinstrap")) %>% 
+  mutate(species = fct_drop(species)) # do this hw1?
+```
+
+Let's dataviz these two species: 
+```{r}
+ggplot(data = adelie_chinstrap, aes(x = body_mass_g,
+                                    y = flipper_length_mm)) +
+  geom_point(aes(color = sex)) +
+  facet_wrap(~species)
+```
+
+Binary logistic regression - find probability based on several variables if a penguin based on our model is Adelie or Chinstrap (binning of data is basis for many machine learning techniques)
+
+- body mass
+- flipper length
+- penguin sex
+```{r}
+adelie_chinstrap_blr <- glm(species ~
+                              body_mass_g + flipper_length_mm + sex,
+                            data = adelie_chinstrap,
+                            family = "binomial") # On L side, link = log odds, 2 outcome vars
+```
+
+Take a look at outcomes:
+```{r}
+adelie_chinstrap_blr
+
+summary(adelie_chinstrap_blr)
+
+# Interpret coefficients: body mass (continuous measured var), L side = Chinstrap (2nd fct, Adelie = ref lvl), as body mass increases log-odds of being Chinstrap decrease
+```
+
+```{r}
+ggplot(data = adelie_chinstrap,
+       aes(x = species, y = flipper_length_mm)) +
+  geom_jitter(aes(color = sex))
+#Shows that as flipper length increases, odds of being Chinstrap increase
+```
+
+What are the actual probabilities of being Chinstrap for each of the existing observations in adelie_chinstrap df?
+```{r}
+blr_fitted <- adelie_chinstrap_blr %>% 
+  broom::augment(type.predict = "response")
+# Fitted value tells probability based on body mass/flipper length/sex that penguin is Chinstrap - most rows are right, some are wrong, dangerous to use for classification
+```
+
+Plotting fitted probabilities 
+```{r}
+ggplot(data = blr_fitted,
+       aes(x = flipper_length_mm, y = .fitted)) +
+  geom_point(aes(color = sex, pch = species)) + # Change pt style to actual species
+  geom_smooth(aes(color = sex), se = FALSE) +
+  labs(x = "Flipper length (mm)",
+       y = "Probability of outcome Chinstrap")
+```
+
+Plot actual model fit based on different variables (flipper length, body mass):
+```{r}
+jtools::effect_plot(adelie_chinstrap_blr,
+                    pred = body_mass_g,
+                    y.label = "Probability of Chinstrap",
+                    interval = TRUE) #Quick overview of how prob changes wrt model var
+```
+
+What's the probability a female penguin weighing 3410g w/ flipper length of 192mm is a Chinstrap?
+```{r}
+ex_1 <- predict(adelie_chinstrap_blr,
+                data.frame(sex = "female",
+                           body_mass_g = 3410,
+                           flipper_length_mm = 192),
+                type = "response") # Converts log-odds to actual probability
+
+ex_1
+```
+
